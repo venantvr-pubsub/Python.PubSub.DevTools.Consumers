@@ -213,6 +213,70 @@ def example_custom_config():
     print()
 
 
+def example_sequential_processing():
+    """Exemple avec traitement séquentiel (évite les race conditions)."""
+    print("=== SEQUENTIAL PROCESSING EXAMPLE ===\n")
+
+    # Simuler un état partagé qui pourrait avoir des race conditions
+    class EventCounter:
+
+        def __init__(self):
+            self.count = 0
+            self.processed_events = []
+
+        def handle_event(self, event_name: str, event_data: dict, source: str) -> bool:
+            """
+            Handler qui modifie un état partagé.
+            Sans sequential_processing=True, il y aurait des race conditions!
+            """
+            import time
+
+            # Simuler un traitement qui prend du temps
+            time.sleep(0.1)
+
+            # Incrémenter le compteur (opération non-atomique)
+            self.count += 1
+            self.processed_events.append(event_name)
+
+            print(f"[{self.count}] Processed: {event_name} from {source}")
+            return True
+
+    counter = EventCounter()
+
+    # Créer le player avec traitement séquentiel
+    player = DevToolsPlayerProxy(
+        consumer_name="sequential-consumer",
+        event_handler=counter.handle_event,
+        sequential_processing=True  # ✅ Garantit l'ordre et évite les race conditions
+    )
+
+    print(f"Player configured with sequential processing:")
+    print(f"  - URL: {player.player_url}")
+    print(f"  - Sequential: {player.sequential_processing}")
+    print(f"\nStarting player...\n")
+
+    if player.start():
+        print("✓ Player started\n")
+        print("Player is now processing events SEQUENTIALLY.")
+        print("Events are queued and processed one at a time.")
+        print("This eliminates race conditions!")
+        print("\nSend multiple events simultaneously from DevTools")
+        print("and they will be processed in order.\n")
+        print("Press Ctrl+C to stop...\n")
+
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n\nStopping player...")
+            player.stop()  # Arrêt propre avec attente de la queue
+            print(f"✓ Player stopped")
+            print(f"\nTotal events processed: {counter.count}")
+            print(f"Events: {counter.processed_events}\n")
+    else:
+        print("✗ Failed to start player (DevTools not running?)\n")
+
+
 if __name__ == "__main__":
     print("Python PubSub DevTools Consumers - Examples (Simplified API)")
     print("=" * 70)
@@ -225,9 +289,10 @@ if __name__ == "__main__":
     print("3. Custom business logic")
     print("4. Error handling")
     print("5. Custom configuration")
+    print("6. Sequential processing (no race conditions)")
     print()
 
-    choice = input("Enter choice (1/2/3/4/5): ").strip()
+    choice = input("Enter choice (1/2/3/4/5/6): ").strip()
 
     print("\n" + "=" * 70 + "\n")
 
@@ -241,6 +306,8 @@ if __name__ == "__main__":
         example_error_handling()
     elif choice == "5":
         example_custom_config()
+    elif choice == "6":
+        example_sequential_processing()
     else:
         print("Invalid choice!")
 

@@ -7,12 +7,14 @@ de DevTools pour recevoir les événements rejoués.
 from __future__ import annotations
 
 import logging
+import queue
 import random
-import requests
 import string
 import threading
+from typing import Callable, Optional
+
+import requests
 from flask import Flask, request, jsonify
-from typing import Any, Callable, Optional
 
 from .port_utils import find_free_port
 
@@ -52,6 +54,8 @@ class DevToolsPlayerProxy:
         unregister_endpoint: Endpoint de désenregistrement DevTools (défaut: /api/player/unregister)
         port_range: Tuple (start, end) pour la recherche de port libre (défaut: 10001, 65535)
         auto_find_port: Si True, trouve automatiquement un port libre (défaut: True)
+        sequential_processing: Si True, traite les événements séquentiellement via une queue
+                              pour éviter les race conditions (défaut: False)
 
     Example:
         >>> def handle_event(event_name, event_data, source):
@@ -77,6 +81,7 @@ class DevToolsPlayerProxy:
             unregister_endpoint: str = '/api/player/unregister',
             port_range: tuple[int, int] = (10001, 65535),
             auto_find_port: bool = True,
+            sequential_processing: bool = False,
     ):
         self.consumer_name = consumer_name
         self.event_handler = event_handler
@@ -111,6 +116,15 @@ class DevToolsPlayerProxy:
         self._server_thread: Optional[threading.Thread] = None
         self._registered = False
 
+        # Mode de traitement séquentiel
+        self.sequential_processing = sequential_processing
+        self._event_queue: Optional[queue.Queue] = None
+        self._worker_thread: Optional[threading.Thread] = None
+        self._stop_worker = False
+
+        if self.sequential_processing:
+            self._event_queue = queue.Queue()
+
     def _flask_handler(self):
         """
         Handler Flask interne - encapsule toute la logique HTTP/JSON.
@@ -133,23 +147,35 @@ class DevToolsPlayerProxy:
             if event_data is None:
                 return jsonify({'error': 'Missing event_data'}), 400
 
-            # Appeler le handler du consommateur (simple!)
-            success = self.event_handler(event_name, event_data, source)
-
-            # Retourner la réponse HTTP appropriée
-            if success:
-                logger.debug(f"Event processed: {event_name} from {source}")
+            # Mode de traitement selon la configuration
+            if self.sequential_processing:
+                # Mode queue : mettre l'événement en queue pour traitement séquentiel
+                self._event_queue.put((event_name, event_data, source))
+                logger.debug(f"Event queued: {event_name} from {source}")
                 return jsonify({
-                    'status': 'success',
-                    'event_name': event_name
-                }), 200
-            else:
-                logger.warning(f"Event processing failed: {event_name}")
-                return jsonify({
-                    'status': 'error',
+                    'status': 'queued',
                     'event_name': event_name,
-                    'error': 'Handler returned False'
-                }), 500
+                    'queue_size': self._event_queue.qsize()
+                }), 202  # 202 Accepted
+
+            else:
+                # Mode direct : traiter immédiatement (comportement original)
+                success = self.event_handler(event_name, event_data, source)
+
+                # Retourner la réponse HTTP appropriée
+                if success:
+                    logger.debug(f"Event processed: {event_name} from {source}")
+                    return jsonify({
+                        'status': 'success',
+                        'event_name': event_name
+                    }), 200
+                else:
+                    logger.warning(f"Event processing failed: {event_name}")
+                    return jsonify({
+                        'status': 'error',
+                        'event_name': event_name,
+                        'error': 'Handler returned False'
+                    }), 500
 
         except Exception as e:
             logger.error(f"Error in Flask handler: {e}", exc_info=True)
@@ -157,6 +183,46 @@ class DevToolsPlayerProxy:
                 'status': 'error',
                 'error': str(e)
             }), 500
+
+    def _worker_loop(self):
+        """
+        Boucle worker - traite les événements séquentiellement depuis la queue.
+        Cette méthode s'exécute dans un thread séparé et garantit qu'un seul
+        événement est traité à la fois, éliminant ainsi les race conditions.
+        """
+        logger.info("Event worker thread started")
+
+        while not self._stop_worker:
+            try:
+                # Attendre un événement avec timeout pour pouvoir vérifier _stop_worker
+                try:
+                    event_name, event_data, source = self._event_queue.get(timeout=0.5)
+                except queue.Empty:
+                    continue
+
+                # Signal d'arrêt
+                if event_name is None:
+                    break
+
+                # Traitement séquentiel garanti
+                try:
+                    success = self.event_handler(event_name, event_data, source)
+
+                    if success:
+                        logger.debug(f"Event processed: {event_name} from {source}")
+                    else:
+                        logger.warning(f"Event processing failed: {event_name}")
+
+                except Exception as e:
+                    logger.error(f"Error processing event {event_name}: {e}", exc_info=True)
+
+                finally:
+                    self._event_queue.task_done()
+
+            except Exception as e:
+                logger.error(f"Error in worker loop: {e}", exc_info=True)
+
+        logger.info("Event worker thread stopped")
 
     def start(self, flask_host: str = '0.0.0.0', flask_debug: bool = False) -> bool:
         """
@@ -169,6 +235,17 @@ class DevToolsPlayerProxy:
         Returns:
             True si succès, False sinon
         """
+        # Démarrer le worker thread si mode séquentiel
+        if self.sequential_processing:
+            self._stop_worker = False
+            self._worker_thread = threading.Thread(
+                target=self._worker_loop,
+                daemon=True,
+                name=f"EventWorker-{self.player_port}"
+            )
+            self._worker_thread.start()
+            logger.info(f"Sequential processing enabled - worker thread started")
+
         # Démarrer le serveur Flask dans un thread
         self._server_thread = threading.Thread(
             target=lambda: self._app.run(
@@ -243,6 +320,56 @@ class DevToolsPlayerProxy:
         except requests.RequestException as e:
             logger.warning(f"Failed to unregister from DevTools: {e}")
             return False
+
+    def stop(self, timeout: float = 5.0) -> bool:
+        """
+        Arrête proprement le player et le worker thread.
+
+        Cette méthode :
+        1. Désenregistre le player de DevTools
+        2. Arrête le worker thread (si mode séquentiel)
+        3. Attend que tous les événements en queue soient traités
+
+        Args:
+            timeout: Temps maximum d'attente (en secondes) pour que la queue se vide
+
+        Returns:
+            True si l'arrêt s'est bien passé, False sinon
+        """
+        logger.info("Stopping player...")
+
+        # Désenregistrer de DevTools
+        self.unregister()
+
+        # Arrêter le worker thread si mode séquentiel
+        if self.sequential_processing and self._worker_thread and self._worker_thread.is_alive():
+            logger.info("Stopping worker thread...")
+
+            # Signaler l'arrêt
+            self._stop_worker = True
+
+            # Mettre un signal d'arrêt dans la queue (au cas où elle serait bloquée)
+            self._event_queue.put((None, None, None))
+
+            # Attendre que la queue se vide
+            try:
+                logger.info(f"Waiting for queue to empty (timeout={timeout}s)...")
+                self._event_queue.join()
+                logger.info("Queue emptied successfully")
+            except Exception as e:
+                logger.warning(f"Error while waiting for queue to empty: {e}")
+
+            # Attendre que le thread se termine
+            self._worker_thread.join(timeout=timeout)
+
+            if self._worker_thread.is_alive():
+                logger.warning("Worker thread did not stop gracefully")
+                return False
+            else:
+                logger.info("Worker thread stopped successfully")
+
+        logger.info("Player stopped")
+        return True
 
     @property
     def is_registered(self) -> bool:

@@ -142,5 +142,43 @@ def test_event_handler_signature():
     assert received['source'] == "test_source"
 
 
+def test_sequential_processing_mode():
+    """Test le mode sequential_processing."""
+    from python_pubsub_devtools_consumers import DevToolsPlayerProxy
+
+    def simple_handler(event_name, event_data, source):
+        return True
+
+    # Player avec sequential_processing activé
+    player = DevToolsPlayerProxy(
+        consumer_name="seq-consumer",
+        event_handler=simple_handler,
+        sequential_processing=True
+    )
+
+    assert player.sequential_processing is True
+    assert player._event_queue is not None
+    assert player._worker_thread is None  # Pas encore démarré
+    assert player._stop_worker is False
+
+
+def test_sequential_processing_disabled():
+    """Test le mode par défaut (sans sequential_processing)."""
+    from python_pubsub_devtools_consumers import DevToolsPlayerProxy
+
+    def simple_handler(event_name, event_data, source):
+        return True
+
+    # Player sans sequential_processing (défaut)
+    player = DevToolsPlayerProxy(
+        consumer_name="normal-consumer",
+        event_handler=simple_handler
+    )
+
+    assert player.sequential_processing is False
+    assert player._event_queue is None
+    assert player._worker_thread is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
