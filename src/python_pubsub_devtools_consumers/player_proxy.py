@@ -200,23 +200,28 @@ class DevToolsPlayerProxy:
                 except queue.Empty:
                     continue
 
-                # Signal d'arrêt
-                if event_name is None:
-                    break
-
-                # Traitement séquentiel garanti
+                # IMPORTANT: Utiliser un finally pour TOUJOURS appeler task_done()
+                # même en cas de break ou d'exception
                 try:
-                    success = self.event_handler(event_name, event_data, source)
+                    # Signal d'arrêt
+                    if event_name is None:
+                        return  # Sortie propre
 
-                    if success:
-                        logger.debug(f"Event processed: {event_name} from {source}")
-                    else:
-                        logger.warning(f"Event processing failed: {event_name}")
+                    # Traitement séquentiel garanti
+                    try:
+                        success = self.event_handler(event_name, event_data, source)
 
-                except Exception as e:
-                    logger.error(f"Error processing event {event_name}: {e}", exc_info=True)
+                        if success:
+                            logger.debug(f"Event processed: {event_name} from {source}")
+                        else:
+                            logger.warning(f"Event processing failed: {event_name}")
+
+                    except Exception as e:
+                        logger.error(f"Error processing event {event_name}: {e}", exc_info=True)
 
                 finally:
+                    # CRITIQUE: task_done() doit être appelé pour CHAQUE get() réussi
+                    # sinon queue.join() bloquera indéfiniment
                     self._event_queue.task_done()
 
             except Exception as e:
@@ -345,19 +350,20 @@ class DevToolsPlayerProxy:
         if self.sequential_processing and self._worker_thread and self._worker_thread.is_alive():
             logger.info("Stopping worker thread...")
 
-            # Signaler l'arrêt
-            self._stop_worker = True
-
-            # Mettre un signal d'arrêt dans la queue (au cas où elle serait bloquée)
+            # IMPORTANT: Mettre le signal d'arrêt AVANT de signaler _stop_worker
+            # pour éviter une race condition où le worker sort avant de traiter le signal
             self._event_queue.put((None, None, None))
 
-            # Attendre que la queue se vide
+            # Attendre que la queue se vide (le worker va traiter le signal d'arrêt)
             try:
                 logger.info(f"Waiting for queue to empty (timeout={timeout}s)...")
                 self._event_queue.join()
                 logger.info("Queue emptied successfully")
             except Exception as e:
                 logger.warning(f"Error while waiting for queue to empty: {e}")
+
+            # Signaler l'arrêt APRÈS que la queue soit vide
+            self._stop_worker = True
 
             # Attendre que le thread se termine
             self._worker_thread.join(timeout=timeout)

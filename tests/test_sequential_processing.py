@@ -3,11 +3,29 @@ Tests pour vérifier le traitement séquentiel des événements.
 
 Ces tests vérifient que les événements sont traités dans l'ordre
 lorsque sequential_processing=True.
+
+ATTENTION : Ces tests nécessitent Flask installé.
+Si Flask n'est pas disponible, utilisez test_queue_logic.py à la place.
 """
-import pytest
 import threading
 import time
-from unittest.mock import MagicMock, patch
+
+import pytest
+
+# Vérifier si Flask est disponible
+flask_available = False
+try:
+    import flask
+
+    flask_available = True
+except ImportError:
+    pass
+
+# Skip tous les tests si Flask n'est pas disponible
+pytestmark = pytest.mark.skipif(
+    not flask_available,
+    reason="Flask not installed. Use test_queue_logic.py instead."
+)
 
 
 def test_sequential_order_with_queue():
@@ -57,13 +75,22 @@ def test_sequential_order_with_queue():
     for event_name in events_to_send:
         player._event_queue.put((event_name, {"data": "test"}, "test-source"))
 
-    # Attendre que tous les événements soient traités
-    player._event_queue.join()
+    # Attendre que tous les événements soient traités (avec timeout pour éviter blocage)
+    start_time = time.time()
+    timeout = 5.0  # 5 secondes maximum
+    while player._event_queue.qsize() > 0 and (time.time() - start_time) < timeout:
+        time.sleep(0.1)
+
+    # Vérifier qu'on n'a pas timeout
+    assert player._event_queue.qsize() == 0, "Queue should be empty (possible deadlock)"
 
     # Arrêter le worker
     player._stop_worker = True
     player._event_queue.put((None, None, None))  # Signal d'arrêt
     player._worker_thread.join(timeout=2)
+
+    # Vérifier que le thread s'est bien arrêté
+    assert not player._worker_thread.is_alive(), "Worker thread should have stopped"
 
     # Vérifications
     assert len(processed_events) == 5, "Tous les événements doivent être traités"
