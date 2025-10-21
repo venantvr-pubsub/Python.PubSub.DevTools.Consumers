@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-pubsub-devtools-consumers"
+version = "0.1.0"
+description = "Generic DevTools consumer proxies for event recording and playback"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "flask>=2.0.0",
+    "requests>=2.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "mypy>=0.950",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["python_pubsub_devtools_consumers*"]
+
+[tool.setuptools.package-data]
+python_pubsub_devtools_consumers = ["py.typed"]
