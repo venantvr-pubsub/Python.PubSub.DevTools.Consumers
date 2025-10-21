@@ -1,8 +1,8 @@
 """
 Exemple simple d'utilisation de la librairie python-pubsub-devtools-consumers.
 
-Ce script démontre comment utiliser les proxies player et recorder avec
-des configurations personnalisées.
+Ce script démontre l'API simplifiée où toute la logique Flask/HTTP/JSON
+est encapsulée dans la librairie.
 """
 import time
 
@@ -13,19 +13,11 @@ from python_pubsub_devtools_consumers import (
 )
 
 
-def my_event_handler(event_name: str, payload: dict, producer: str):
-    """Callback appelée quand un événement est rejoué."""
-    print(f"[REPLAY] Event: {event_name}")
-    print(f"[REPLAY] From: {producer}")
-    print(f"[REPLAY] Payload: {payload}")
-    print("-" * 50)
-
-
 def example_recorder():
     """Exemple d'utilisation du recorder."""
     print("=== RECORDER EXAMPLE ===\n")
 
-    # Configuration simple avec URL
+    # Configuration simple
     recorder = DevToolsRecorderProxy(
         devtools_url="http://localhost:5556"
     )
@@ -35,7 +27,7 @@ def example_recorder():
     if recorder.start_session("example-session"):
         print("✓ Recording started\n")
 
-        # Simuler l'enregistrement d'événements
+        # Enregistrer des événements
         print("Recording events...")
         recorder.record_event(
             "user.created",
@@ -59,15 +51,37 @@ def example_recorder():
 
 
 def example_player():
-    """Exemple d'utilisation du player."""
-    print("=== PLAYER EXAMPLE ===\n")
+    """Exemple d'utilisation du player avec handler simple."""
+    print("=== PLAYER EXAMPLE (Simplified API) ===\n")
 
-    # Configuration avec port automatique
+    # Handler simple - reçoit juste les données déjà parsées
+    def handle_event(event_name: str, event_data: dict, source: str) -> bool:
+        """
+        Handler ultra-simple qui traite l'événement.
+        Pas besoin de connaître Flask, JSON, HTTP, etc.
+
+        Args:
+            event_name: Nom de l'événement
+            event_data: Données de l'événement (déjà parsées!)
+            source: Source de l'événement
+
+        Returns:
+            True si succès, False si erreur
+        """
+        print(f"[REPLAY] Event: {event_name}")
+        print(f"[REPLAY] From: {source}")
+        print(f"[REPLAY] Data: {event_data}")
+        print("-" * 50)
+
+        # Votre logique métier ici
+        # Par exemple: sauvegarder en DB, envoyer à Kafka, etc.
+
+        return True  # Succès
+
+    # Configuration simple - un seul paramètre requis!
     player = DevToolsPlayerProxy(
-        publish_callback=my_event_handler,
         consumer_name="example-consumer",
-        devtools_url="http://localhost:5556",
-        # Le port sera trouvé automatiquement
+        event_handler=handle_event  # Handler simple
     )
 
     print(f"Starting player on {player.player_url}...")
@@ -75,8 +89,8 @@ def example_player():
         print("✓ Player started and registered\n")
         print(f"Player listening on: {player.player_url}")
         print(f"Is registered: {player.is_registered}")
-        print("\nPlayer is now ready to receive replayed events.")
-        print("Use DevTools UI to replay events.")
+        print("\nPlayer is now ready to receive events.")
+        print("Use DevTools UI to send events.")
         print("\nPress Ctrl+C to stop...\n")
 
         try:
@@ -91,68 +105,143 @@ def example_player():
         print("✗ Failed to start player (DevTools not running?)\n")
 
 
+def example_custom_business_logic():
+    """Exemple avec logique métier personnalisée."""
+    print("=== CUSTOM BUSINESS LOGIC EXAMPLE ===\n")
+
+    # Logique métier plus complexe
+    class EventProcessor:
+
+        def __init__(self):
+            self.events_processed = 0
+
+        def process(self, event_name: str, event_data: dict, source: str) -> bool:
+            """Processeur d'événements avec logique métier."""
+            self.events_processed += 1
+
+            print(f"Processing event #{self.events_processed}: {event_name}")
+
+            # Validation métier
+            if event_name.startswith("user."):
+                if "id" not in event_data:
+                    print(f"  ✗ Validation failed: missing 'id' field")
+                    return False
+
+            # Traitement
+            print(f"  ✓ Event processed successfully")
+
+            # Vous pourriez ici:
+            # - Sauvegarder en base de données
+            # - Envoyer à Kafka
+            # - Appeler d'autres services
+            # - Transformer les données
+            # - etc.
+
+            return True
+
+    processor = EventProcessor()
+
+    player = DevToolsPlayerProxy(
+        consumer_name="business-consumer",
+        event_handler=processor.process  # Méthode de classe
+    )
+
+    print(f"Player configured with custom business logic")
+    print(f"Player URL: {player.player_url}\n")
+
+
+def example_error_handling():
+    """Exemple avec gestion d'erreurs."""
+    print("=== ERROR HANDLING EXAMPLE ===\n")
+
+    def handle_with_errors(event_name: str, event_data: dict, source: str) -> bool:
+        """Handler qui gère les erreurs."""
+        try:
+            print(f"Processing: {event_name}")
+
+            # Simuler une validation
+            if event_name == "invalid.event":
+                print("  ✗ Invalid event type")
+                return False  # Échec
+
+            if not isinstance(event_data, dict):
+                print("  ✗ Invalid data format")
+                return False
+
+            # Traitement normal
+            print(f"  ✓ Success")
+            return True
+
+        except Exception as e:
+            print(f"  ✗ Exception: {e}")
+            return False  # Échec
+
+    player = DevToolsPlayerProxy(
+        consumer_name="error-handler-consumer",
+        event_handler=handle_with_errors
+    )
+
+    print(f"Player with error handling: {player.player_url}\n")
+
+
 def example_custom_config():
-    """Exemple avec configuration personnalisée."""
+    """Exemple avec configuration avancée."""
     print("=== CUSTOM CONFIGURATION EXAMPLE ===\n")
 
     # Trouver un port libre dans une plage spécifique
     free_port = find_free_port(start_port=20000, end_port=21000)
     print(f"Found free port: {free_port}\n")
 
-    # Configuration avancée du player
+    def simple_handler(event_name, event_data, source):
+        print(f"Received: {event_name}")
+        return True
+
+    # Configuration avancée
     player = DevToolsPlayerProxy(
-        publish_callback=my_event_handler,
         consumer_name="custom-consumer",
+        event_handler=simple_handler,
         devtools_url="http://localhost:5556",
-        player_port=free_port,  # Port spécifique
+        player_port=free_port,
         player_host="localhost",
-        player_endpoint="/custom/replay",
-        register_endpoint="/api/player/register",
-        auto_find_port=False  # Désactiver la recherche auto
+        auto_find_port=False
     )
 
     print(f"Player configured with custom settings:")
     print(f"  - URL: {player.player_url}")
-    print(f"  - Endpoint: {player.player_endpoint}")
+    print(f"  - Endpoint: {player.player_endpoint} (auto-generated)")
     print(f"  - DevTools: {player.devtools_url}")
-    print()
-
-    # Configuration avancée du recorder
-    recorder = DevToolsRecorderProxy(
-        devtools_url="http://localhost:5556",
-        timeout=10,  # Timeout personnalisé
-        event_endpoint="/api/record/event"
-    )
-
-    print(f"Recorder configured with custom settings:")
-    print(f"  - DevTools: {recorder.devtools_url}")
-    print(f"  - Timeout: {recorder.timeout}s")
     print()
 
 
 if __name__ == "__main__":
-    print("Python PubSub DevTools Consumers - Examples")
-    print("=" * 60)
+    print("Python PubSub DevTools Consumers - Examples (Simplified API)")
+    print("=" * 70)
     print()
 
     # Choisir l'exemple à exécuter
     print("Choose an example:")
     print("1. Recorder example")
-    print("2. Player example")
-    print("3. Custom configuration example")
+    print("2. Player example (Simple handler)")
+    print("3. Custom business logic")
+    print("4. Error handling")
+    print("5. Custom configuration")
     print()
 
-    choice = input("Enter choice (1/2/3): ").strip()
+    choice = input("Enter choice (1/2/3/4/5): ").strip()
 
-    print("\n" + "=" * 60 + "\n")
+    print("\n" + "=" * 70 + "\n")
 
     if choice == "1":
         example_recorder()
     elif choice == "2":
         example_player()
     elif choice == "3":
+        example_custom_business_logic()
+    elif choice == "4":
+        example_error_handling()
+    elif choice == "5":
         example_custom_config()
     else:
         print("Invalid choice!")
 
-    print("=" * 60)
+    print("=" * 70)

@@ -25,7 +25,6 @@ def test_port_utils():
     assert 50000 <= port < 51000
 
     # Le port trouvé devrait être disponible (au moment du test)
-    # Note: Peut échouer si le port est pris entre-temps
     assert isinstance(is_port_available(port), bool)
 
 
@@ -39,20 +38,20 @@ def test_recorder_instantiation():
 
 
 def test_player_instantiation():
-    """Test l'instantiation du player."""
+    """Test l'instantiation du player avec handler simple."""
     from python_pubsub_devtools_consumers import DevToolsPlayerProxy
 
-    def dummy_callback(event_name, payload, producer):
-        pass
+    def simple_handler(event_name, event_data, source):
+        """Handler simple qui retourne toujours True."""
+        return True
 
     player = DevToolsPlayerProxy(
-        publish_callback=dummy_callback,
         consumer_name="test-consumer",
-        devtools_url="http://localhost:5556",
+        event_handler=simple_handler
     )
 
-    assert player.devtools_url == "http://localhost:5556"
     assert player.consumer_name == "test-consumer"
+    assert player.devtools_url == "http://localhost:5556"
     assert player.is_registered is False
 
 
@@ -60,21 +59,22 @@ def test_player_custom_config():
     """Test la configuration personnalisée du player."""
     from python_pubsub_devtools_consumers import DevToolsPlayerProxy
 
-    def dummy_callback(event_name, payload, producer):
-        pass
+    def simple_handler(event_name, event_data, source):
+        return True
 
     player = DevToolsPlayerProxy(
-        publish_callback=dummy_callback,
         consumer_name="test-consumer",
+        event_handler=simple_handler,
         devtools_url="http://localhost:5556",
         player_port=9999,
-        player_endpoint="/custom/replay",
         auto_find_port=False,
     )
 
     assert player.player_port == 9999
-    assert player.player_endpoint == "/custom/replay"
     assert "9999" in player.player_url
+    # L'endpoint est généré automatiquement (aléatoire)
+    assert player.player_endpoint.startswith("/")
+    assert len(player.player_endpoint) == 9  # '/' + 8 caractères
 
 
 def test_recorder_custom_config():
@@ -90,6 +90,56 @@ def test_recorder_custom_config():
     assert recorder.devtools_url == "http://localhost:8888"
     assert recorder.event_endpoint == "/custom/event"
     assert recorder.timeout == 15
+
+
+def test_event_handler_return_values():
+    """Test que le handler peut retourner True/False."""
+    from python_pubsub_devtools_consumers import DevToolsPlayerProxy
+
+    # Handler qui retourne True
+    def success_handler(event_name, event_data, source):
+        return True
+
+    player1 = DevToolsPlayerProxy(
+        consumer_name="success-consumer",
+        event_handler=success_handler
+    )
+    assert player1.event_handler("test", {}, "source") is True
+
+    # Handler qui retourne False
+    def failure_handler(event_name, event_data, source):
+        return False
+
+    player2 = DevToolsPlayerProxy(
+        consumer_name="failure-consumer",
+        event_handler=failure_handler
+    )
+    assert player2.event_handler("test", {}, "source") is False
+
+
+def test_event_handler_signature():
+    """Test que le handler reçoit les bons paramètres."""
+    from python_pubsub_devtools_consumers import DevToolsPlayerProxy
+
+    received = {}
+
+    def capture_handler(event_name, event_data, source):
+        received['event_name'] = event_name
+        received['event_data'] = event_data
+        received['source'] = source
+        return True
+
+    player = DevToolsPlayerProxy(
+        consumer_name="capture-consumer",
+        event_handler=capture_handler
+    )
+
+    # Simuler un appel
+    player.event_handler("test_event", {"key": "value"}, "test_source")
+
+    assert received['event_name'] == "test_event"
+    assert received['event_data'] == {"key": "value"}
+    assert received['source'] == "test_source"
 
 
 if __name__ == "__main__":
