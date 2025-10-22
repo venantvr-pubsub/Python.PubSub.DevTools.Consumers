@@ -4,10 +4,11 @@ Tests unitaires de la logique de queue sans dépendances Flask/requests.
 Ces tests vérifient directement la logique de traitement séquentiel
 en isolant la queue et le worker thread.
 """
-import pytest
 import queue
 import threading
 import time
+
+import pytest
 
 
 def test_sequential_processing_order():
@@ -316,7 +317,7 @@ def test_timing_proves_sequential_not_parallel():
 
     # Vérifier que les événements sont espacés (traitement séquentiel)
     for i in range(1, len(processing_times)):
-        time_diff = processing_times[i] - processing_times[i-1]
+        time_diff = processing_times[i] - processing_times[i - 1]
         # Chaque événement devrait être traité ~0.05s après le précédent
         assert time_diff >= 0.04, f"Les événements doivent être espacés (séquentiel): {time_diff}s"
 

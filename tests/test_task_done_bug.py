@@ -4,10 +4,11 @@ Test pour vérifier que task_done() est TOUJOURS appelé.
 Ce test vérifie spécifiquement le bug où task_done() n'était pas appelé
 lors du signal d'arrêt (None, None, None), causant un blocage de queue.join().
 """
-import pytest
 import queue
 import threading
 import time
+
+import pytest
 
 
 def test_task_done_called_for_stop_signal():
@@ -138,6 +139,7 @@ def test_task_done_called_for_all_events():
 
     # Wrapper pour compter les appels à task_done()
     original_task_done = event_queue.task_done
+
     def counted_task_done():
         nonlocal task_done_count
         task_done_count += 1

@@ -20,6 +20,7 @@ player = DevToolsPlayerProxy(
 ```
 
 **Résultats :**
+
 - Mode parallèle : **85.6% de perte**
 - Mode séquentiel : **0% de perte**
 
@@ -45,24 +46,25 @@ player = DevToolsPlayerProxy(
 
 ### Performance sous charge
 
-| Mode | Événements traités | Perte | Ordre | Race conditions |
-|------|-------------------|-------|-------|-----------------|
-| Parallèle (défaut) | 7.2/50 (14.4%) | **85.6%** | ❌ Non | ⚠️ Oui |
-| Séquentiel | 50/50 (100%) | **0%** | ✅ Oui | ❌ Non |
+| Mode               | Événements traités | Perte     | Ordre | Race conditions |
+|--------------------|--------------------|-----------|-------|-----------------|
+| Parallèle (défaut) | 7.2/50 (14.4%)     | **85.6%** | ❌ Non | ⚠️ Oui          |
+| Séquentiel         | 50/50 (100%)       | **0%**    | ✅ Oui | ❌ Non           |
 
 ### Tests
 
-| Aspect | Valeur |
-|--------|--------|
-| Tests unitaires | 10/10 ✅ |
+| Aspect              | Valeur                      |
+|---------------------|-----------------------------|
+| Tests unitaires     | 10/10 ✅                     |
 | Tests d'intégration | 6 (skippés si Flask absent) |
-| Temps total | 2.45s (sans blocage) |
-| Couverture | ~95% de la logique |
-| Bugs détectés | 2 (tous corrigés) |
+| Temps total         | 2.45s (sans blocage)        |
+| Couverture          | ~95% de la logique          |
+| Bugs détectés       | 2 (tous corrigés)           |
 
 ## 📁 Fichiers créés/modifiés
 
 **Total : 12 fichiers**
+
 - Code : 2
 - Tests : 5
 - Documentation : 5

@@ -13,12 +13,14 @@ python3 -m pytest tests/test_queue_logic.py -v
 ```
 
 **Avantages :**
+
 - ✅ Pas de dépendances externes
 - ✅ Rapide (1-2 secondes)
 - ✅ Ne se bloque jamais
 - ✅ Teste la logique pure de la queue
 
 **Tests inclus :**
+
 - Ordre de traitement préservé
 - Gestion des exceptions dans le handler
 - Handlers qui retournent False
@@ -40,6 +42,7 @@ PYTHONPATH=src python3 -m pytest tests/test_sequential_processing.py -v
 ```
 
 **Comportement :**
+
 - ✅ Si Flask n'est pas installé : **6 tests skippés** (pas d'erreur)
 - ✅ Si Flask est installé : tests d'intégration complets
 - ✅ Protection contre les blocages avec timeouts
@@ -55,11 +58,13 @@ python3 tests/demo_race_conditions.py
 ```
 
 **Affiche :**
+
 - Comparaison mode parallèle vs séquentiel
 - Résultats chiffrés (% de perte)
 - Recommandations
 
 **Exemple de sortie :**
+
 ```
 Mode PARALLÈLE  : 7.2/50 événements traités (85.6% de perte!)
 Mode SÉQUENTIEL : 50/50 événements traités (0% de perte)
@@ -76,11 +81,13 @@ python3 tests/demo_task_done_bug.py
 ```
 
 **Montre :**
+
 - Version buggée : Se bloque à `queue.join()` après 3 secondes
 - Version corrigée : Succès immédiat
 - Explication du bug
 
 **Résultat :**
+
 ```
 ❌ Version BUGGÉE : Se bloque à queue.join()
 ✅ Version CORRIGÉE : Succès en 0.00s!
@@ -129,33 +136,39 @@ PYTHONPATH=src python3 -m pytest tests/test_sequential_processing.py -v
 
 ## 🔍 Comparaison des tests
 
-| Fichier | Dépendances | Durée | Blocage? | Utilité |
-|---------|-------------|-------|----------|---------|
-| `test_queue_logic.py` | ✅ Aucune | ~2s | ❌ Non | **Tests unitaires** |
-| `test_task_done_bug.py` | ✅ Aucune | ~0.3s | ❌ Non | **Test bug task_done()** |
-| `test_sequential_processing.py` | ⚠️ Flask | ~0.3s | ❌ Non (skippés) | Tests d'intégration |
-| `demo_race_conditions.py` | ✅ Aucune | ~3s | ❌ Non | **Démo race conditions** |
-| `demo_task_done_bug.py` | ✅ Aucune | ~3s | ⚠️ 3s timeout | **Démo bug task_done()** |
-| `test_imports.py` | ⚠️ Flask | ~1s | ❌ Non | Tests basiques |
+| Fichier                         | Dépendances | Durée | Blocage?        | Utilité                  |
+|---------------------------------|-------------|-------|-----------------|--------------------------|
+| `test_queue_logic.py`           | ✅ Aucune    | ~2s   | ❌ Non           | **Tests unitaires**      |
+| `test_task_done_bug.py`         | ✅ Aucune    | ~0.3s | ❌ Non           | **Test bug task_done()** |
+| `test_sequential_processing.py` | ⚠️ Flask    | ~0.3s | ❌ Non (skippés) | Tests d'intégration      |
+| `demo_race_conditions.py`       | ✅ Aucune    | ~3s   | ❌ Non           | **Démo race conditions** |
+| `demo_task_done_bug.py`         | ✅ Aucune    | ~3s   | ⚠️ 3s timeout   | **Démo bug task_done()** |
+| `test_imports.py`               | ⚠️ Flask    | ~1s   | ❌ Non           | Tests basiques           |
 
 ---
 
 ## 💡 Recommandations
 
 ### Pour le développement quotidien
+
 Utilisez **`test_queue_logic.py`** :
+
 - Pas de dépendances
 - Rapide et fiable
 - Teste la logique essentielle
 
 ### Pour une démonstration
+
 Utilisez **`demo_race_conditions.py`** :
+
 - Montre visuellement le problème
 - Résultats chiffrés
 - Impactant pour convaincre
 
 ### Pour l'intégration complète
+
 Utilisez **`test_sequential_processing.py`** (avec Flask installé) :
+
 - Teste le player complet
 - Vérifie l'intégration Flask
 - Plus proche de la production
@@ -167,6 +180,7 @@ Utilisez **`test_sequential_processing.py`** (avec Flask installé) :
 ### Q: Les tests `test_sequential_processing.py` se bloquent ?
 
 **R:** Non, ils sont maintenant protégés :
+
 - Si Flask n'est pas installé → **skippés** automatiquement
 - Timeouts ajoutés pour éviter les blocages
 - Utilisez `test_queue_logic.py` comme alternative sans dépendances
@@ -174,6 +188,7 @@ Utilisez **`test_sequential_processing.py`** (avec Flask installé) :
 ### Q: Pourquoi deux fichiers de tests pour la même fonctionnalité ?
 
 **R:** Séparation des concerns :
+
 - `test_queue_logic.py` : **Logique pure** (queue + worker) sans dépendances
 - `test_sequential_processing.py` : **Intégration** (Flask + queue + worker)
 

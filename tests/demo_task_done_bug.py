@@ -5,10 +5,10 @@ Ce script montre ce qui se passe AVANT et APRÈS la correction du bug
 où task_done() n'était pas appelé pour le signal d'arrêt.
 """
 import queue
-import threading
-import time
 import signal
 import sys
+import threading
+import time
 
 
 def demo_bug_version():

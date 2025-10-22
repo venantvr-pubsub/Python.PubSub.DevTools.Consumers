@@ -99,7 +99,7 @@ def test_sequential_order_with_queue():
     # Vérifier que les événements ont été traités séquentiellement (pas en parallèle)
     # Chaque événement prend ~0.05s, donc ils doivent être espacés
     for i in range(1, len(processing_times)):
-        time_diff = processing_times[i] - processing_times[i-1]
+        time_diff = processing_times[i] - processing_times[i - 1]
         assert time_diff >= 0.04, f"Les événements doivent être traités séquentiellement (diff={time_diff})"
 
 

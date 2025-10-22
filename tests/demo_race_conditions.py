@@ -7,7 +7,6 @@ quand on modifie un état partagé.
 import queue
 import threading
 import time
-from typing import List
 
 
 class Counter:
