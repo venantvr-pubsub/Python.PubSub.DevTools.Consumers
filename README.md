@@ -165,3 +165,7 @@ class MyPubSubClient:
 ## Licence
 
 MIT
+
+## Stack
+
+[![Stack](https://skillicons.dev/icons?i=py,flask&theme=dark)](https://skillicons.dev)
